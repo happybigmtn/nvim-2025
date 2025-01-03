@@ -3,7 +3,6 @@ vim.g.mapleader = " "
 local keymap = vim.keymap -- for conciseness
 
 keymap.set("i", "jk", "<ESC>", { desc = "Exit insert mode with jk" })
-keymap.set("v", "jk", "<ESC>", { desc = "Exit visualmode with jk" })
 
 keymap.set("n", "<leader>nh", ":nohl<CR>", { desc = "Clear search highlights" })
 
@@ -49,3 +48,9 @@ keymap.set("v", "<leader><leader>j", ":m .+1<CR>==", { desc = "Move line down" }
 keymap.set("v", "<leader><leader>k", ":m .-2<CR>==", { desc = "Move line up" })
 keymap.set("v", "<leader><leader>h", "xhP", { desc = "Move character left" })
 keymap.set("v", "<leader><leader>l", "xp", { desc = "Move character right" })
+
+-- 'x' for original 's' behavior (delete character and enter insert)
+keymap.set("n", "x", "s", { desc = "Delete char and insert" })
+
+-- 'X' for original 'S' behavior (delete line and enter insert)
+keymap.set("n", "X", "S", { desc = "Delete line and insert" })

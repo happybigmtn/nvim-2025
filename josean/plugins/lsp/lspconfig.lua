@@ -70,7 +70,7 @@ return {
         keymap.set("n", "gi", vim.lsp.buf.implementation, opts)
 
         opts.desc = "Show signature help"
-        keymap.set("n", "<C-k>", vim.lsp.buf.signature_help, opts)
+        keymap.set("i", "<C-k>", vim.lsp.buf.signature_help, opts)
 
         -- Workspace management
         opts.desc = "Add workspace folder"
