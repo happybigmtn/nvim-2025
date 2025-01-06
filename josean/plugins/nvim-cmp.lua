@@ -17,9 +17,7 @@ return {
   },
   config = function()
     local cmp = require("cmp")
-
     local luasnip = require("luasnip")
-
     local lspkind = require("lspkind")
 
     -- loads vscode style snippets from installed plugins (e.g. friendly-snippets)
@@ -28,6 +26,7 @@ return {
     cmp.setup({
       completion = {
         completeopt = "menu,menuone,preview,noselect",
+        keyword_length = 3, -- This ensures completion only triggers after 3 characters
       },
       snippet = { -- configure how nvim-cmp interacts with snippet engine
         expand = function(args)
@@ -43,15 +42,36 @@ return {
         ["<C-e>"] = cmp.mapping.abort(), -- close completion window
         ["<CR>"] = cmp.mapping.confirm({ select = false }),
       }),
-      -- sources for autocompletion
+      -- sources for autocompletion with custom filter for Rust files
       sources = cmp.config.sources({
-        { name = "nvim_lsp" },
-        { name = "luasnip" }, -- snippets
-        { name = "buffer" }, -- text within current buffer
-        { name = "path" }, -- file system paths
-      }),
+        {
+          name = "nvim_lsp",
+          entry_filter = function(entry, context)
+            -- First check for Rust-specific completions we want to prevent
+            if vim.bo.filetype == "rust" then
+              local line_to_cursor = context.cursor_before_line
+              -- Check for both "us" and "pu" at the end of the line
+              if line_to_cursor:match("us$") or line_to_cursor:match("pu$") then
+                return false
+              end
+            end
 
-      -- configure lspkind for vs-code like pictograms in completion menu
+            -- Get the string being typed
+            local line = context.cursor_before_line
+            local current_word = line:match("%S+$") or ""
+
+            -- Only show completions for words with 4 or more characters
+            if #current_word < 4 then
+              return false
+            end
+
+            return true
+          end,
+        },
+        { name = "luasnip" },
+        { name = "buffer" },
+        { name = "path" },
+      }), -- configure lspkind for vs-code like pictograms in completion menu
       formatting = {
         format = function(entry, item)
           -- First, apply the lspkind formatting you already have
