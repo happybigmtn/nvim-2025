@@ -37,3 +37,7 @@ opt.splitbelow = true -- split horizontal window to the bottom
 
 -- turn off swapfile
 opt.swapfile = false
+-- Folding
+vim.opt.foldmethod = "manual"
+vim.opt.foldenable = true
+vim.opt.foldlevel = 99

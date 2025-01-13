@@ -9,49 +9,89 @@ return {
     { "folke/neodev.nvim", opts = {} },
   },
   config = function()
-    -- Import required modules
+    -- Import required modules for LSP functionality
     local lspconfig = require("lspconfig")
     local mason_lspconfig = require("mason-lspconfig")
     local cmp_nvim_lsp = require("cmp_nvim_lsp")
     local keymap = vim.keymap
-
-    -- Performance settings
+    ----------------------------------------------------------------------------
+    -- Enhanced diagnostics configuration
+    ----------------------------------------------------------------------------
     vim.lsp.set_log_level("ERROR")
-    vim.g.markdown_fenced_languages = {
-      "ts=typescript",
-    }
+    vim.g.markdown_fenced_languages = { "ts=typescript" }
     vim.g.eslint_d_enable_lsp = false
+
     vim.diagnostic.config({
       virtual_text = {
         source = "always",
         spacing = 4,
+        prefix = "●",
         format = function(diagnostic)
-          if diagnostic.source == "eslint" then
-            return nil
-          end
-          return diagnostic.message
+          local severity_labels = {
+            [vim.diagnostic.severity.ERROR] = "Error",
+            [vim.diagnostic.severity.WARN] = "Warning",
+            [vim.diagnostic.severity.INFO] = "Info",
+            [vim.diagnostic.severity.HINT] = "Hint",
+          }
+          local label = severity_labels[diagnostic.severity]
+          return string.format("%s: %s", label, diagnostic.message)
         end,
       },
       float = {
         source = "always",
+        border = "rounded",
+        header = "",
+        prefix = "",
+        format = function(diagnostic)
+          local message = diagnostic.message
+          local source = diagnostic.source
+          local code = diagnostic.code or (diagnostic.user_data and diagnostic.user_data.lsp.code)
+
+          local lines = {
+            message,
+            "",
+            string.format("Source: %s", source or "unknown"),
+          }
+
+          if code then
+            table.insert(lines, string.format("Code: %s", code))
+          end
+
+          local severity = ({
+            [1] = "Error",
+            [2] = "Warning",
+            [3] = "Information",
+            [4] = "Hint",
+          })[diagnostic.severity]
+
+          if severity then
+            table.insert(lines, string.format("Severity: %s", severity))
+          end
+
+          return table.concat(lines, "\n")
+        end,
       },
+      signs = true,
+      underline = true,
       update_in_insert = false,
       severity_sort = true,
     })
 
-    -- Buffer management settings
+    -- Performance and buffer settings
     vim.o.hidden = true
     vim.o.updatetime = 300
     vim.o.timeoutlen = 500
     vim.lsp.start_client_timeout = 10000
 
-    -- LSP attach autocmd
-    -- LSP attach autocmd
+    ----------------------------------------------------------------------------
+    -- LSP keybindings and diagnostic navigation
+    ----------------------------------------------------------------------------
     vim.api.nvim_create_autocmd("LspAttach", {
       group = vim.api.nvim_create_augroup("UserLspConfig", {}),
       callback = function(ev)
         local opts = { buffer = ev.buf, silent = true }
 
+        -- LSP navigation
         opts.desc = "Go to declaration"
         keymap.set("n", "gD", vim.lsp.buf.declaration, opts)
 
@@ -64,12 +104,26 @@ return {
         opts.desc = "Go to implementation"
         keymap.set("n", "gi", vim.lsp.buf.implementation, opts)
 
+        -- Signature help
         opts.desc = "Show signature help"
         keymap.set("i", "<C-h>", vim.lsp.buf.signature_help, opts)
-
-        opts.desc = "Show signature help"
         keymap.set("n", "gh", vim.lsp.buf.signature_help, opts)
 
+        -- Diagnostic navigation and info
+        opts.desc = "Show line diagnostics"
+        keymap.set("n", "gl", vim.diagnostic.open_float, opts)
+
+        opts.desc = "Go to previous diagnostic"
+        keymap.set("n", "[d", vim.diagnostic.goto_prev, opts)
+
+        opts.desc = "Go to next diagnostic"
+        keymap.set("n", "]d", vim.diagnostic.goto_next, opts)
+
+        -- Window navigation
+        keymap.set("n", "<C-w>l", "<C-w>l", { desc = "Focus right window" })
+        keymap.set("n", "<C-w>h", "<C-w>h", { desc = "Focus left window" })
+
+        -- Workspace management
         opts.desc = "Add workspace folder"
         keymap.set("n", "<leader>wa", vim.lsp.buf.add_workspace_folder, opts)
 
@@ -81,6 +135,7 @@ return {
           print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
         end, opts)
 
+        -- Code actions and modifications
         opts.desc = "Go to type definition"
         keymap.set("n", "<leader>D", vim.lsp.buf.type_definition, opts)
 
@@ -100,7 +155,9 @@ return {
       end,
     })
 
-    -- Capabilities configuration
+    ----------------------------------------------------------------------------
+    -- Completion capabilities
+    ----------------------------------------------------------------------------
     local capabilities = cmp_nvim_lsp.default_capabilities()
     capabilities.textDocument.completion.completionItem.snippetSupport = true
     capabilities.textDocument.completion.completionItem.preselectSupport = true
@@ -113,85 +170,65 @@ return {
       },
     }
 
-    -- Diagnostic signs
+    -- Diagnostic signs configuration
     local signs = { Error = " ", Warn = " ", Hint = "󰠠 ", Info = " " }
     for type, icon in pairs(signs) do
       local hl = "DiagnosticSign" .. type
       vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = "" })
     end
 
-    -- Workaround for cancellation errors
+    -- Handle LSP cancellation errors
     for _, method in ipairs({ "textDocument/diagnostic", "workspace/diagnostic" }) do
       local default_handler = vim.lsp.handlers[method]
-      vim.lsp.handlers[method] = function(err, result, ctx, config)
+      vim.lsp.handlers[method] = function(err, result, ctx, cfg)
         if err and err.code == -32802 then
           return
         end
-        return default_handler(err, result, ctx, config)
+        return default_handler(err, result, ctx, cfg)
       end
     end
 
-    -- Set up language servers with enhanced stability settings
+    ----------------------------------------------------------------------------
+    -- Language server configurations
+    ----------------------------------------------------------------------------
     mason_lspconfig.setup_handlers({
-      -- Enhanced Rust Analyzer configuration with automatic type hints
       ["rust_analyzer"] = function()
         lspconfig.rust_analyzer.setup({
           capabilities = capabilities,
           settings = {
             ["rust-analyzer"] = {
-              -- Existing cargo settings remain unchanged
               cargo = {
                 loadOutDirsFromCheck = true,
                 runBuildScripts = true,
               },
-              -- Add inlay hints configuration for automatic type information
               inlayHints = {
                 enable = true,
-                -- Show parameter names in function calls
                 parameterHints = {
                   enable = true,
                   hideNamedArguments = false,
                 },
-                -- Show inferred types for variables
                 typeHints = {
                   enable = true,
                   hideClosureInitialization = false,
                   hideNamedConstructor = false,
                 },
-                -- Show hints for implicit return types
-                returnTypeHints = {
-                  enable = true,
-                },
-                -- Show hints about variable binding modes
-                bindingModeHints = {
-                  enable = true,
-                },
-                -- Show hints for implicit numeric conversions
+                returnTypeHints = { enable = true },
+                bindingModeHints = { enable = true },
                 expressionAdjustmentHints = {
                   enable = true,
                   mode = "prefix",
                 },
-                -- Configure how the hints look
-                maxLength = 25, -- Truncate long hints
+                maxLength = 25,
               },
-              -- Enhanced hover settings for more detailed information
               hover = {
                 enable = true,
-                documentation = {
-                  enable = true,
-                  keywords = true,
-                },
-                actions = {
-                  enable = true,
-                  group = true,
-                },
+                documentation = { enable = true, keywords = true },
+                actions = { enable = true, group = true },
               },
-              -- Your existing checkOnSave settings remain unchanged
               checkOnSave = {
                 command = "clippy",
                 extraArgs = { "--no-deps" },
               },
-              -- Your existing procMacro settings remain unchanged
               procMacro = {
                 enable = true,
                 ignored = {
@@ -200,29 +237,19 @@ return {
                   ["async-recursion"] = { "async_recursion" },
                 },
               },
-              -- Your existing diagnostics settings remain unchanged
               diagnostics = {
                 disabled = { "unresolved-proc-macro" },
                 enableExperimental = false,
               },
-              -- Enhanced completion settings with postfix completion filtering
               completion = {
-                privateEditable = {
-                  enable = true,
-                },
-                snippets = {
-                  custom = {},
-                },
+                privateEditable = { enable = true },
+                snippets = { custom = {} },
                 postfix = {
                   enable = true,
                   ignoredPrefixes = { "pu", "us" },
                 },
-                -- Add parameter completion settings
-                callable = {
-                  snippets = "fill_arguments",
-                },
+                callable = { snippets = "fill_arguments" },
               },
-              -- Your existing experimental settings remain unchanged
               experimental = {
                 procAttrMacros = true,
               },
@@ -239,28 +266,66 @@ return {
       ["svelte"] = function()
         lspconfig["svelte"].setup({
           capabilities = capabilities,
+          flags = {
+            debounce_text_changes = 150,
+          },
         })
       end,
 
       ["graphql"] = function()
         lspconfig["graphql"].setup({
           capabilities = capabilities,
+          flags = {
+            debounce_text_changes = 150,
+          },
+          filetypes = { "graphql", "gql", "svelte", "typescriptreact", "javascriptreact" },
         })
       end,
 
       ["emmet_ls"] = function()
         lspconfig["emmet_ls"].setup({
           capabilities = capabilities,
+          flags = {
+            debounce_text_changes = 150,
+          },
+          filetypes = {
+            "html",
+            "typescriptreact",
+            "javascriptreact",
+            "css",
+            "sass",
+            "scss",
+            "less",
+            "svelte",
+          },
         })
       end,
 
       ["lua_ls"] = function()
         lspconfig["lua_ls"].setup({
           capabilities = capabilities,
+          flags = {
+            debounce_text_changes = 150,
+          },
+          settings = {
+            Lua = {
+              diagnostics = {
+                globals = { "vim" },
+              },
+              completion = {
+                callSnippet = "Replace",
+              },
+              workspace = {
+                checkThirdParty = false,
+              },
+              telemetry = {
+                enable = false,
+              },
+            },
+          },
         })
       end,
 
-      -- Default handler
       function(server_name)
         lspconfig[server_name].setup({
           capabilities = capabilities,
