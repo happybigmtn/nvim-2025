@@ -4,7 +4,8 @@ local keymap = vim.keymap -- for conciseness
 
 keymap.set("i", "jk", "<ESC>", { desc = "Exit insert mode with jk" })
 
-keymap.set("n", "<leader>nh", ":nohl<CR>", { desc = "Clear search highlights" })
+keymap.set("i", "JK", "<ESC>", { desc = "Exit insert mode with jk" })
+keymap.set("n", "<leader>nn", ":nohl<CR>", { desc = "Clear search highlights" })
 
 -- increment/decrement numbers
 keymap.set("n", "<leader>+", "<C-a>", { desc = "Increment number" }) -- increment
@@ -25,9 +26,6 @@ keymap.set("n", "<leader>ti", ":TSToolsFileReferences<CR>", opts, { desc = "Find
 keymap.set("n", "<leader>th", ":TSToolsRemoveUnused<CR>", opts, { desc = "Remove Unused" })
 keymap.set("n", "<leader>tg", ":TSToolsGoToSourceDefinition<CR>", opts, { desc = "Go To Source" })
 keymap.set("n", "<leader>tp", ":TSToolsAddMissingImports<CR>", opts, { desc = "Add Missing Imports" })
-keymap.set("n", "<leader>ca", function()
-  require("tiny-code-action").code_action()
-end, { noremap = true, silent = true })
 
 -- Select all text in buffer (similar to Cmd-A or Ctrl-A)
 keymap.set("n", "<leader>sa", "ggVG", { desc = "Select all text in buffer" })

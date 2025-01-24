@@ -9,14 +9,11 @@ return {
     { "folke/neodev.nvim", opts = {} },
   },
   config = function()
-    -- Import required modules for LSP functionality
     local lspconfig = require("lspconfig")
     local mason_lspconfig = require("mason-lspconfig")
     local cmp_nvim_lsp = require("cmp_nvim_lsp")
     local keymap = vim.keymap
-    ----------------------------------------------------------------------------
-    -- Enhanced diagnostics configuration
-    ----------------------------------------------------------------------------
+
     vim.lsp.set_log_level("ERROR")
     vim.g.markdown_fenced_languages = { "ts=typescript" }
     vim.g.eslint_d_enable_lsp = false
@@ -77,21 +74,16 @@ return {
       severity_sort = true,
     })
 
-    -- Performance and buffer settings
     vim.o.hidden = true
     vim.o.updatetime = 300
     vim.o.timeoutlen = 500
     vim.lsp.start_client_timeout = 10000
 
-    ----------------------------------------------------------------------------
-    -- LSP keybindings and diagnostic navigation
-    ----------------------------------------------------------------------------
     vim.api.nvim_create_autocmd("LspAttach", {
       group = vim.api.nvim_create_augroup("UserLspConfig", {}),
       callback = function(ev)
         local opts = { buffer = ev.buf, silent = true }
 
-        -- LSP navigation
         opts.desc = "Go to declaration"
         keymap.set("n", "gD", vim.lsp.buf.declaration, opts)
 
@@ -104,12 +96,10 @@ return {
         opts.desc = "Go to implementation"
         keymap.set("n", "gi", vim.lsp.buf.implementation, opts)
 
-        -- Signature help
         opts.desc = "Show signature help"
         keymap.set("i", "<C-h>", vim.lsp.buf.signature_help, opts)
         keymap.set("n", "gh", vim.lsp.buf.signature_help, opts)
 
-        -- Diagnostic navigation and info
         opts.desc = "Show line diagnostics"
         keymap.set("n", "gl", vim.diagnostic.open_float, opts)
 
@@ -119,11 +109,9 @@ return {
         opts.desc = "Go to next diagnostic"
         keymap.set("n", "]d", vim.diagnostic.goto_next, opts)
 
-        -- Window navigation
         keymap.set("n", "<C-w>l", "<C-w>l", { desc = "Focus right window" })
         keymap.set("n", "<C-w>h", "<C-w>h", { desc = "Focus left window" })
 
-        -- Workspace management
         opts.desc = "Add workspace folder"
         keymap.set("n", "<leader>wa", vim.lsp.buf.add_workspace_folder, opts)
 
@@ -135,7 +123,6 @@ return {
           print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
         end, opts)
 
-        -- Code actions and modifications
         opts.desc = "Go to type definition"
         keymap.set("n", "<leader>D", vim.lsp.buf.type_definition, opts)
 
@@ -143,7 +130,44 @@ return {
         keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
 
         opts.desc = "Code actions"
-        keymap.set({ "n", "v" }, "<leader>ca", vim.lsp.buf.code_action, opts)
+        keymap.set({ "n", "v" }, "<leader>ca", function()
+          -- Get current diagnostics
+          local diagnostics = vim.lsp.diagnostic.get_line_diagnostics()
+
+          -- Define the context with diagnostics
+          local context = {
+            diagnostics = diagnostics,
+            triggerKind = vim.lsp.protocol.CodeActionTriggerKind.Invoked,
+          }
+
+          -- For normal mode, we'll use a simpler approach that's more reliable
+          if vim.fn.mode() == "n" then
+            vim.lsp.buf.code_action({
+              context = context,
+            })
+          else
+            -- For visual mode, we need to handle the range
+            local start_pos = vim.fn.getpos("'<")
+            local end_pos = vim.fn.getpos("'>")
+
+            -- Create the range object properly
+            local range = {
+              ["start"] = {
+                line = start_pos[2] - 1,
+                character = start_pos[3] - 1,
+              },
+              ["end"] = {
+                line = end_pos[2] - 1,
+                character = end_pos[3],
+              },
+            }
+
+            vim.lsp.buf.code_action({
+              range = range,
+              context = context,
+            })
+          end
+        end, opts)
 
         opts.desc = "Show references"
         keymap.set("n", "gr", vim.lsp.buf.references, opts)
@@ -155,9 +179,6 @@ return {
       end,
     })
 
-    ----------------------------------------------------------------------------
-    -- Completion capabilities
-    ----------------------------------------------------------------------------
     local capabilities = cmp_nvim_lsp.default_capabilities()
     capabilities.textDocument.completion.completionItem.snippetSupport = true
     capabilities.textDocument.completion.completionItem.preselectSupport = true
@@ -170,14 +191,12 @@ return {
       },
     }
 
-    -- Diagnostic signs configuration
     local signs = { Error = " ", Warn = " ", Hint = "󰠠 ", Info = " " }
     for type, icon in pairs(signs) do
       local hl = "DiagnosticSign" .. type
       vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = "" })
     end
 
-    -- Handle LSP cancellation errors
     for _, method in ipairs({ "textDocument/diagnostic", "workspace/diagnostic" }) do
       local default_handler = vim.lsp.handlers[method]
       vim.lsp.handlers[method] = function(err, result, ctx, cfg)
@@ -188,9 +207,6 @@ return {
       end
     end
 
-    ----------------------------------------------------------------------------
-    -- Language server configurations
-    ----------------------------------------------------------------------------
     mason_lspconfig.setup_handlers({
       ["rust_analyzer"] = function()
         lspconfig.rust_analyzer.setup({
@@ -228,6 +244,7 @@ return {
               checkOnSave = {
                 command = "clippy",
                 extraArgs = { "--no-deps" },
+                allFeatures = true,
               },
               procMacro = {
                 enable = true,
@@ -237,9 +254,15 @@ return {
                   ["async-recursion"] = { "async_recursion" },
                 },
               },
+              assist = {
+                importGranularity = "module",
+                importPrefix = "self",
+                allowMergingIntoGlobImports = true,
+              },
               diagnostics = {
                 disabled = { "unresolved-proc-macro" },
-                enableExperimental = false,
+                enableExperimental = true,
+                experimental = { enable = true },
               },
               completion = {
                 privateEditable = { enable = true },
@@ -249,6 +272,16 @@ return {
                   ignoredPrefixes = { "pu", "us" },
                 },
                 callable = { snippets = "fill_arguments" },
+                autoimport = { enable = true },
+                autoself = { enable = true },
+              },
+              lens = {
+                enable = true,
+                debug = { enable = true },
+                implementations = { enable = true },
+                run = { enable = true },
+                methodReferences = true,
+                references = true,
               },
               experimental = {
                 procAttrMacros = true,
