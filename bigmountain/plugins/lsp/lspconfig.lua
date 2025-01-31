@@ -1,3 +1,4 @@
+-- Complete LSP configuration including all language servers and updated Tailwind support
 return {
   "neovim/nvim-lspconfig",
   event = { "BufReadPre", "BufNewFile" },
@@ -7,17 +8,26 @@ return {
     "williamboman/mason-lspconfig.nvim",
     { "antosha417/nvim-lsp-file-operations", config = true },
     { "folke/neodev.nvim", opts = {} },
+    {
+      "pmizio/typescript-tools.nvim",
+      dependencies = { "nvim-lua/plenary.nvim" },
+      opts = {},
+    },
   },
   config = function()
+    -- Import required modules
     local lspconfig = require("lspconfig")
     local mason_lspconfig = require("mason-lspconfig")
     local cmp_nvim_lsp = require("cmp_nvim_lsp")
+    local util = require("lspconfig.util")
     local keymap = vim.keymap
 
-    vim.lsp.set_log_level("ERROR")
+    -- Basic LSP configurations
+    vim.lsp.set_log_level("INFO")
     vim.g.markdown_fenced_languages = { "ts=typescript" }
     vim.g.eslint_d_enable_lsp = false
 
+    -- Configure diagnostics display
     vim.diagnostic.config({
       virtual_text = {
         source = "always",
@@ -39,34 +49,6 @@ return {
         border = "rounded",
         header = "",
         prefix = "",
-        format = function(diagnostic)
-          local message = diagnostic.message
-          local source = diagnostic.source
-          local code = diagnostic.code or (diagnostic.user_data and diagnostic.user_data.lsp.code)
-
-          local lines = {
-            message,
-            "",
-            string.format("Source: %s", source or "unknown"),
-          }
-
-          if code then
-            table.insert(lines, string.format("Code: %s", code))
-          end
-
-          local severity = ({
-            [1] = "Error",
-            [2] = "Warning",
-            [3] = "Information",
-            [4] = "Hint",
-          })[diagnostic.severity]
-
-          if severity then
-            table.insert(lines, string.format("Severity: %s", severity))
-          end
-
-          return table.concat(lines, "\n")
-        end,
       },
       signs = true,
       underline = true,
@@ -74,113 +56,17 @@ return {
       severity_sort = true,
     })
 
-    vim.o.hidden = true
-    vim.o.updatetime = 300
-    vim.o.timeoutlen = 500
-    vim.lsp.start_client_timeout = 10000
+    -- Set up LSP signs
+    local signs = { Error = " ", Warn = " ", Hint = "󰠠 ", Info = " " }
+    for type, icon in pairs(signs) do
+      local hl = "DiagnosticSign" .. type
+      vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = "" })
+    end
 
-    vim.api.nvim_create_autocmd("LspAttach", {
-      group = vim.api.nvim_create_augroup("UserLspConfig", {}),
-      callback = function(ev)
-        local opts = { buffer = ev.buf, silent = true }
-
-        opts.desc = "Go to declaration"
-        keymap.set("n", "gD", vim.lsp.buf.declaration, opts)
-
-        opts.desc = "Go to definition"
-        keymap.set("n", "gd", vim.lsp.buf.definition, opts)
-
-        opts.desc = "Show hover information"
-        keymap.set("n", "K", vim.lsp.buf.hover, opts)
-
-        opts.desc = "Go to implementation"
-        keymap.set("n", "gi", vim.lsp.buf.implementation, opts)
-
-        opts.desc = "Show signature help"
-        keymap.set("i", "<C-h>", vim.lsp.buf.signature_help, opts)
-        keymap.set("n", "gh", vim.lsp.buf.signature_help, opts)
-
-        opts.desc = "Show line diagnostics"
-        keymap.set("n", "gl", vim.diagnostic.open_float, opts)
-
-        opts.desc = "Go to previous diagnostic"
-        keymap.set("n", "[d", vim.diagnostic.goto_prev, opts)
-
-        opts.desc = "Go to next diagnostic"
-        keymap.set("n", "]d", vim.diagnostic.goto_next, opts)
-
-        keymap.set("n", "<C-w>l", "<C-w>l", { desc = "Focus right window" })
-        keymap.set("n", "<C-w>h", "<C-w>h", { desc = "Focus left window" })
-
-        opts.desc = "Add workspace folder"
-        keymap.set("n", "<leader>wa", vim.lsp.buf.add_workspace_folder, opts)
-
-        opts.desc = "Remove workspace folder"
-        keymap.set("n", "<leader>wr", vim.lsp.buf.remove_workspace_folder, opts)
-
-        opts.desc = "List workspace folders"
-        keymap.set("n", "<leader>wl", function()
-          print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
-        end, opts)
-
-        opts.desc = "Go to type definition"
-        keymap.set("n", "<leader>D", vim.lsp.buf.type_definition, opts)
-
-        opts.desc = "Rename symbol"
-        keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
-
-        opts.desc = "Code actions"
-        keymap.set({ "n", "v" }, "<leader>ca", function()
-          -- Get current diagnostics
-          local diagnostics = vim.lsp.diagnostic.get_line_diagnostics()
-
-          -- Define the context with diagnostics
-          local context = {
-            diagnostics = diagnostics,
-            triggerKind = vim.lsp.protocol.CodeActionTriggerKind.Invoked,
-          }
-
-          -- For normal mode, we'll use a simpler approach that's more reliable
-          if vim.fn.mode() == "n" then
-            vim.lsp.buf.code_action({
-              context = context,
-            })
-          else
-            -- For visual mode, we need to handle the range
-            local start_pos = vim.fn.getpos("'<")
-            local end_pos = vim.fn.getpos("'>")
-
-            -- Create the range object properly
-            local range = {
-              ["start"] = {
-                line = start_pos[2] - 1,
-                character = start_pos[3] - 1,
-              },
-              ["end"] = {
-                line = end_pos[2] - 1,
-                character = end_pos[3],
-              },
-            }
-
-            vim.lsp.buf.code_action({
-              range = range,
-              context = context,
-            })
-          end
-        end, opts)
-
-        opts.desc = "Show references"
-        keymap.set("n", "gr", vim.lsp.buf.references, opts)
-
-        opts.desc = "Format buffer"
-        keymap.set("n", "<leader>f", function()
-          vim.lsp.buf.format({ async = true })
-        end, opts)
-      end,
-    })
-
+    -- Set up capabilities
     local capabilities = cmp_nvim_lsp.default_capabilities()
     capabilities.textDocument.completion.completionItem.snippetSupport = true
+    capabilities.textDocument.colorProvider = { dynamicRegistration = false }
     capabilities.textDocument.completion.completionItem.preselectSupport = true
     capabilities.textDocument.completion.completionItem.insertReplaceSupport = true
     capabilities.textDocument.completion.completionItem.resolveSupport = {
@@ -191,23 +77,111 @@ return {
       },
     }
 
-    local signs = { Error = " ", Warn = " ", Hint = "󰠠 ", Info = " " }
-    for type, icon in pairs(signs) do
-      local hl = "DiagnosticSign" .. type
-      vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = "" })
-    end
+    -- Set up TypeScript tools
+    require("typescript-tools").setup({
+      capabilities = capabilities,
+      settings = {
+        tsserver_file_preferences = {
+          includeInlayParameterNameHints = "all",
+          includeInlayParameterNameHintsWhenArgumentMatchesName = false,
+          includeInlayFunctionParameterTypeHints = true,
+          includeInlayVariableTypeHints = true,
+          includeInlayPropertyDeclarationTypeHints = true,
+          includeInlayFunctionLikeReturnTypeHints = true,
+          includeInlayEnumMemberValueHints = true,
+        },
+      },
+    })
 
-    for _, method in ipairs({ "textDocument/diagnostic", "workspace/diagnostic" }) do
-      local default_handler = vim.lsp.handlers[method]
-      vim.lsp.handlers[method] = function(err, result, ctx, cfg)
-        if err and err.code == -32802 then
-          return
-        end
-        return default_handler(err, result, ctx, cfg)
-      end
-    end
-
+    -- Configure Mason LSP handlers
     mason_lspconfig.setup_handlers({
+      -- Default handler
+      function(server_name)
+        lspconfig[server_name].setup({
+          capabilities = capabilities,
+          flags = {
+            debounce_text_changes = 150,
+            allow_incremental_sync = true,
+          },
+        })
+      end,
+
+      -- Tailwind CSS configuration (updated for v4)
+
+      ["tailwindcss"] = function()
+        local project_root = vim.fn.getcwd()
+
+        lspconfig.tailwindcss.setup({
+          capabilities = capabilities,
+          cmd = { vim.fn.stdpath("data") .. "/mason/bin/tailwindcss-language-server" },
+          root_dir = function(fname)
+            -- Log the current file and project root for debugging
+            vim.notify("Tailwind LSP: Checking file: " .. fname)
+            vim.notify("Tailwind LSP: Project root: " .. project_root)
+
+            -- Try to detect root based on common project files
+            local root = util.root_pattern(
+              "package.json",
+              "postcss.config.js",
+              "postcss.config.ts",
+              "tailwind.config.js",
+              "tailwind.config.ts",
+              "tsconfig.json",
+              "jsconfig.json",
+              "node_modules",
+              ".git"
+            )(fname)
+
+            -- If no root found, fallback to the current working directory
+            if not root then
+              vim.notify(
+                "Tailwind LSP: No root detected. Falling back to current working directory.",
+                vim.log.levels.WARN
+              )
+              return project_root
+            end
+
+            vim.notify("Tailwind LSP: Root detected as: " .. root)
+            return root
+          end,
+          settings = {
+            tailwindCSS = {
+              experimental = {
+                classRegex = {
+                  "className\\s*=\\s*[\"'{']([^\"'`}]*)[\"'}]",
+                  "className\\s*=\\s*{`([^`]*)`}",
+                  "tw`([^`]*)`",
+                  "tw\\s*=\\s*[\"'{']([^\"'`}]*)[\"'}]",
+                },
+              },
+              validate = true,
+            },
+          },
+          filetypes = {
+            "html",
+            "css",
+            "php",
+            "blade",
+            "twig",
+            "vue",
+            "heex",
+            "astro",
+            "eruby",
+            "templ",
+            "svelte",
+            "elixir",
+            "eelixir",
+            "htmldjango",
+            "javascript",
+            "typescript",
+            "javascriptreact",
+            "typescriptreact",
+            "rust",
+          },
+        })
+      end,
+      --
+      -- Rust Analyzer configuration
       ["rust_analyzer"] = function()
         lspconfig.rust_analyzer.setup({
           capabilities = capabilities,
@@ -288,39 +262,32 @@ return {
               },
             },
           },
-          flags = {
-            debounce_text_changes = 200,
-          },
+          flags = { debounce_text_changes = 200 },
         })
       end,
 
-      ["eslint"] = function() end,
-
+      -- Svelte configuration
       ["svelte"] = function()
-        lspconfig["svelte"].setup({
+        lspconfig.svelte.setup({
           capabilities = capabilities,
-          flags = {
-            debounce_text_changes = 150,
-          },
+          flags = { debounce_text_changes = 150 },
         })
       end,
 
+      -- GraphQL configuration
       ["graphql"] = function()
-        lspconfig["graphql"].setup({
+        lspconfig.graphql.setup({
           capabilities = capabilities,
-          flags = {
-            debounce_text_changes = 150,
-          },
+          flags = { debounce_text_changes = 150 },
           filetypes = { "graphql", "gql", "svelte", "typescriptreact", "javascriptreact" },
         })
       end,
 
+      -- Emmet configuration
       ["emmet_ls"] = function()
-        lspconfig["emmet_ls"].setup({
+        lspconfig.emmet_ls.setup({
           capabilities = capabilities,
-          flags = {
-            debounce_text_changes = 150,
-          },
+          flags = { debounce_text_changes = 150 },
           filetypes = {
             "html",
             "typescriptreact",
@@ -334,47 +301,51 @@ return {
         })
       end,
 
+      -- Lua configuration
       ["lua_ls"] = function()
-        lspconfig["lua_ls"].setup({
+        lspconfig.lua_ls.setup({
           capabilities = capabilities,
-          flags = {
-            debounce_text_changes = 150,
-          },
+          flags = { debounce_text_changes = 150 },
           settings = {
             Lua = {
-              diagnostics = {
-                globals = { "vim" },
-              },
-              completion = {
-                callSnippet = "Replace",
-              },
-              workspace = {
-                checkThirdParty = false,
-              },
-              telemetry = {
-                enable = false,
-              },
+              diagnostics = { globals = { "vim" } },
+              completion = { callSnippet = "Replace" },
+              workspace = { checkThirdParty = false },
+              telemetry = { enable = false },
             },
           },
         })
       end,
+    })
 
-      function(server_name)
-        lspconfig[server_name].setup({
-          capabilities = capabilities,
-          flags = {
-            debounce_text_changes = 150,
-            allow_incremental_sync = true,
-          },
-          settings = {
-            ["*"] = {
-              workspace = {
-                maxPreload = 10000,
-                preloadMaxFileSize = 1000000,
-              },
-            },
-          },
-        })
+    -- Set up keymaps when LSP attaches
+    vim.api.nvim_create_autocmd("LspAttach", {
+      group = vim.api.nvim_create_augroup("UserLspConfig", {}),
+      callback = function(ev)
+        local opts = { buffer = ev.buf, noremap = true, silent = true }
+
+        keymap.set("n", "gD", vim.lsp.buf.declaration, opts)
+        keymap.set("n", "gd", vim.lsp.buf.definition, opts)
+        keymap.set("n", "K", vim.lsp.buf.hover, opts)
+        keymap.set("n", "gi", vim.lsp.buf.implementation, opts)
+        keymap.set("i", "<C-k>", vim.lsp.buf.signature_help, opts)
+        keymap.set("n", "<leader>wa", vim.lsp.buf.add_workspace_folder, opts)
+        keymap.set("n", "<leader>wr", vim.lsp.buf.remove_workspace_folder, opts)
+        keymap.set("n", "<leader>wl", function()
+          print(vim.inspect(vim.lsp.buf.list_workspace_folders()))
+        end, opts)
+        keymap.set("n", "<leader>D", vim.lsp.buf.type_definition, opts)
+        keymap.set("n", "<leader>rn", vim.lsp.buf.rename, opts)
+        keymap.set({ "n", "v" }, "<leader>ca", vim.lsp.buf.code_action, opts)
+        keymap.set("n", "gr", vim.lsp.buf.references, opts)
+        keymap.set("n", "<leader>f", function()
+          vim.lsp.buf.format({ async = true })
+        end, opts)
+
+        -- Diagnostic navigation
+        keymap.set("n", "gl", vim.diagnostic.open_float, opts)
+        keymap.set("n", "[d", vim.diagnostic.goto_prev, opts)
+        keymap.set("n", "]d", vim.diagnostic.goto_next, opts)
       end,
     })
   end,

@@ -41,18 +41,29 @@ return {
           require("lspconfig").tailwindcss.setup({
             settings = {
               tailwindCSS = {
-                classAttributes = { "class", "className", "ngClass" },
+                experimental = {
+                  classRegex = {
+                    { 'class[:]\\s*"([^"]*)"', 1 }, -- Phoenix/HEEx
+                    { '~H"([^"]*)"', 1 }, -- HEEx templates
+                    "tw`([^`]*)", -- Twin.macro
+                    "tw\\.[^`]+`([^`]*)`",
+                    "tw\\(.*?\\).*?`([^`]*)`",
+                    'tw="([^"]*)"', -- Standard HTML
+                  },
+                },
+                includeLanguages = {
+                  heex = "html",
+                  elixir = "phoenix-heex",
+                },
                 validate = true,
                 hovers = true,
                 suggestions = true,
-                experimental = {
-                  classRegex = {
-                    "tw`([^`]*)",
-                    "tw\\.[^`]+`([^`]*)`",
-                    "tw\\(.*?\\).*?`([^`]*)`",
-                    'tw="([^"]*)"',
-                  },
-                },
+              },
+            },
+            init_options = {
+              userLanguages = {
+                elixir = "phoenix-heex",
+                heex = "phoenix-heex",
               },
             },
           })
@@ -65,7 +76,6 @@ return {
         "prettier", -- prettier formatter
         "stylua", -- lua formatter
         "isort", -- python formatter
-        "black", -- python formatter
         "pylint",
       },
     })

@@ -41,3 +41,10 @@ opt.swapfile = false
 vim.opt.foldmethod = "manual"
 vim.opt.foldenable = true
 vim.opt.foldlevel = 99
+
+vim.filetype.add({
+  extension = {
+    heex = "heex",
+    exs = "elixir",
+  },
+})
