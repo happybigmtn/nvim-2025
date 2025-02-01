@@ -11,6 +11,23 @@ opt.shiftwidth = 2 -- 2 spaces for indent width
 opt.expandtab = true -- expand tab to spaces
 opt.autoindent = true -- copy indent from current line when starting new one
 
+-- Python-specific settings
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "python",
+  callback = function()
+    -- Disable auto-indentation for Python
+    vim.bo.autoindent = false
+    vim.bo.smartindent = false
+    vim.bo.cindent = false
+
+    -- Set Python-specific indentation
+    vim.bo.expandtab = true -- Use spaces instead of tabs
+    vim.bo.tabstop = 4 -- A tab is 4 spaces
+    vim.bo.shiftwidth = 4 -- Number of spaces for each step of indent
+    vim.bo.softtabstop = 4 -- Backspace removes up to 4 spaces
+  end,
+})
+
 opt.wrap = false
 
 -- search settings
@@ -37,11 +54,13 @@ opt.splitbelow = true -- split horizontal window to the bottom
 
 -- turn off swapfile
 opt.swapfile = false
+
 -- Folding
 vim.opt.foldmethod = "manual"
 vim.opt.foldenable = true
 vim.opt.foldlevel = 99
 
+-- File type associations
 vim.filetype.add({
   extension = {
     heex = "heex",

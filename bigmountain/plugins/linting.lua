@@ -4,6 +4,15 @@ return {
   config = function()
     local lint = require("lint")
 
+    -- Configure pylint to ignore trailing whitespace messages
+    lint.linters.pylint.args = {
+      "-d",
+      "C0303", -- Trailing whitespace
+      "-d",
+      "C0304", -- Final newline missing
+      "--max-line-length=120",
+    }
+
     lint.linters_by_ft = {
       -- Remove typescript/javascript entries
       python = { "pylint" },
