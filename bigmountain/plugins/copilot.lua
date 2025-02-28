@@ -11,19 +11,19 @@ return {
 
     -- Tab accepts the next word, giving you precise control over how much of the suggestion to take
     -- This is particularly useful when you want to carefully review and accept suggestions piece by piece
-    keymap.set("i", "<Tab>", "<Plug>(copilot-accept-word)", {
+    keymap.set("i", "jf", "<Plug>(copilot-accept-word)", {
       desc = "Copilot accept next word",
     })
 
     -- Ctrl-Tab accepts the current line, letting you take more of the suggestion at once
     -- This strikes a balance between word-by-word and full acceptance
-    keymap.set("i", "jj", "<Plug>(copilot-accept-line)", {
+    keymap.set("i", "js", "<Plug>(copilot-accept-line)", {
       desc = "Copilot accept current line",
     })
 
     -- Ctrl-D accepts the entire suggestion, perfect for when you're confident in Copilot's recommendation
     -- This is useful for common patterns or boilerplate code you've verified is correct
-    keymap.set("i", "jz", 'copilot#Accept("<CR>")', {
+    keymap.set("i", "jd", 'copilot#Accept("<CR>")', {
       expr = true,
       replace_keycodes = false,
       desc = "Copilot accept full suggestion",

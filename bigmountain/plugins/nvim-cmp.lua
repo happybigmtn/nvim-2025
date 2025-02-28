@@ -29,7 +29,7 @@ return {
       },
       completion = {
         completeopt = "menu,menuone,preview,noselect",
-        keyword_length = 2, -- minimum number of characters for completion
+        keyword_length = 1, -- minimum number of characters for completion
       },
       snippet = { -- configure how nvim-cmp interacts with snippet engine
         expand = function(args)
@@ -86,6 +86,32 @@ return {
       experimental = {
         ghost_text = false, -- disable ghost text
       },
+    })
+
+    -- Add this after the main cmp.setup
+    vim.api.nvim_create_autocmd("FileType", {
+      pattern = { "haskell" },
+      callback = function()
+        local cmp = require("cmp")
+        -- Configure Tab to trigger completion for Haskell files
+        local mappings = {
+          ["<Tab>"] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+              cmp.select_next_item()
+            else
+              fallback()
+            end
+          end, { "i", "s" }),
+          ["<S-Tab>"] = cmp.mapping(function(fallback)
+            if cmp.visible() then
+              cmp.select_prev_item()
+            else
+              fallback()
+            end
+          end, { "i", "s" }),
+        }
+        cmp.setup.buffer({ mapping = mappings })
+      end,
     })
 
     -- Tailwind specific completion settings

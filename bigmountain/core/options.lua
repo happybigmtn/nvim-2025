@@ -11,12 +11,12 @@ opt.shiftwidth = 2 -- 2 spaces for indent width
 opt.expandtab = true -- expand tab to spaces
 opt.autoindent = true -- copy indent from current line when starting new one
 
--- Python-specific settings
+-- -- Python-specific settings
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "python",
   callback = function()
-    -- Disable auto-indentation for Python
-    vim.bo.autoindent = false
+    -- Ensure auto-indentation for Python is enabled
+    vim.bo.autoindent = true
     vim.bo.smartindent = false
     vim.bo.cindent = false
 

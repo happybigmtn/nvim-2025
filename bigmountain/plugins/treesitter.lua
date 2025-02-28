@@ -13,7 +13,7 @@ return {
         enable = true,
       },
       -- enable indentation
-      indent = { enable = true },
+      indent = { enable = true, disable = { "python" } },
       -- ensure parsers are installed
       ensure_installed = {
         "json",

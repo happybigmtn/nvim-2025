@@ -34,6 +34,7 @@ return {
         "emmet_ls",
         "prismals",
         "pyright",
+        "hls",
       },
       automatic_installation = true,
       handlers = {
