@@ -106,8 +106,71 @@ return {
         })
       end,
 
-      -- Tailwind CSS configuration (updated for v4)
+      -- Find the Solidity LSP handler section and update it like this
+      ["solidity"] = function()
+        -- Disable older solc-based server to prevent conflicts
+        vim.cmd([[
+    if exists('g:lspconfig_solc_setup')
+      LspStop solc
+      unlet g:lspconfig_solc_setup
+    endif
+  ]])
 
+        -- Configure only the Nomicfoundation server
+        lspconfig.solidity_ls.setup({
+          capabilities = capabilities,
+          cmd = { vim.fn.stdpath("data") .. "/mason/bin/nomicfoundation-solidity-language-server", "--stdio" },
+          filetypes = { "solidity" },
+          root_dir = util.root_pattern(
+            "hardhat.config.js",
+            "hardhat.config.ts",
+            "foundry.toml",
+            "remappings.txt",
+            "truffle-config.js",
+            "truffle.js",
+            "package.json",
+            ".git"
+          ),
+          single_file_support = true,
+          settings = {
+            -- Less aggressive settings to avoid parser errors
+            solidity = {
+              includePath = "",
+              remapping = {},
+              -- Set formatter to none to avoid LSP formatting
+              formatter = "none",
+              -- Other settings remain the same
+              inlayHints = {
+                enable = true,
+                parameterNames = true,
+                functionLikeReturnTypes = true,
+                variableTypes = true,
+              },
+              -- Compiler validation settings
+              compileUsingRemoteVersion = "0.8.19",
+              defaultCompiler = "remote",
+              compilerOptimization = 0,
+              evmVersion = "paris",
+            },
+          },
+          init_options = {
+            hostInfo = "neovim",
+            maxCompilationJobs = 1,
+          },
+          flags = {
+            debounce_text_changes = 500, -- Increase debounce time
+          },
+          on_init = function(client)
+            -- Explicitly disable document formatting to prevent interference with prettier
+            client.server_capabilities.documentFormattingProvider = false
+            client.server_capabilities.documentRangeFormattingProvider = false
+
+            -- Notify the user
+            vim.notify("Solidity LSP: Formatting provided by Prettier instead of Language Server", vim.log.levels.INFO)
+          end,
+        })
+      end,
+      -- Tailwind CSS configuration (updated for v4)
       ["tailwindcss"] = function()
         local project_root = vim.fn.getcwd()
 

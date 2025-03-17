@@ -1,334 +1,3 @@
--- local IS_DEV = false
---
--- local prompts = {
---   -- Code related prompts
---   Explain = "Please explain how the following code works.",
---   Review = "Please review the following code and provide suggestions for improvement.",
---   Tests = "Please explain how the selected code works, then generate unit tests for it.",
---   Refactor = "Please refactor the following code to improve its clarity and readability.",
---   FixCode = "Please fix the following code to make it work as intended.",
---   FixError = "Please explain the error in the following text and provide a solution.",
---   BetterNamings = "Please provide better names for the following variables and functions.",
---   Documentation = "Please provide documentation for the following code.",
---   SwaggerApiDocs = "Please provide documentation for the following API using Swagger.",
---   SwaggerJsDocs = "Please write JSDoc for the following API using Swagger.",
---   -- Text related prompts
---   Summarize = "Please summarize the following text.",
---   Spelling = "Please correct any grammar and spelling errors in the following text.",
---   Wording = "Please improve the grammar and wording of the following text.",
---   Concise = "Please rewrite the following text to make it more concise.",
--- }
---
--- return {
---   {
---     "github/copilot.vim",
---     lazy = false,
---     -- Your existing Copilot configuration will be used from copilot.lua
---   },
---   {
---     "folke/which-key.nvim",
---     optional = true,
---     opts = {
---       spec = {
---         { "<leader>a", group = "ai" },
---       },
---     },
---   },
---   {
---     dir = IS_DEV and "~/Projects/research/CopilotChat.nvim" or nil,
---     "CopilotC-Nvim/CopilotChat.nvim",
---     version = "v3.3.0", -- Using a specific version to prevent breaking changes
---     dependencies = {
---       { "nvim-telescope/telescope.nvim" }, -- Use telescope for help actions
---       { "nvim-lua/plenary.nvim" }, -- Important for path handling functions
---       { "github/copilot.vim" }, -- Explicitly declare dependency on Copilot
---     },
---     opts = {
---       question_header = "## User ",
---       answer_header = "## Copilot ",
---       error_header = "## Error ",
---       prompts = prompts,
---       auto_follow_cursor = false, -- Don't follow the cursor after getting response
---       mappings = {
---         -- Use tab for completion
---         complete = {
---           detail = "Use @<Tab> or /<Tab> for options.",
---           insert = "<Tab>",
---         },
---         -- Close the chat
---         close = {
---           normal = "q",
---           insert = "<C-c>",
---         },
---         -- Reset the chat buffer
---         reset = {
---           normal = "<C-x>",
---           insert = "<C-x>",
---         },
---         -- Submit the prompt to Copilot
---         submit_prompt = {
---           normal = "<CR>",
---           insert = "<C-CR>",
---         },
---         -- Accept the diff
---         accept_diff = {
---           normal = "<C-y>",
---           insert = "<C-y>",
---         },
---         -- Show help
---         show_help = {
---           normal = "g?",
---         },
---       },
---     },
---     config = function(_, opts)
---       local chat = require("CopilotChat")
---
---       -- Make sure plenary is properly loaded before setting up CopilotChat
---       local has_plenary, plenary_path = pcall(require, "plenary.path")
---       if not has_plenary then
---         vim.notify("CopilotChat requires plenary.nvim", vim.log.levels.ERROR)
---         return
---       end
---
---       -- First, patch the CopilotChat.utils module to add our missing functions
---       local CopilotChatUtils = require("CopilotChat.utils")
---
---       -- Add the missing abspath function
---       CopilotChatUtils.abspath = function(path)
---         if not path then
---           return nil
---         end
---
---         if has_plenary then
---           return plenary_path:new(path):absolute()
---         end
---
---         -- Fallback to a simple path normalization if plenary is not available
---         return path
---       end
---
---       -- Override the filename_same function with a more robust version
---       if CopilotChatUtils.filename_same then
---         local original_filename_same = CopilotChatUtils.filename_same
---
---         CopilotChatUtils.filename_same = function(a, b)
---           -- Basic nil checks
---           if not a or not b then
---             return false
---           end
---
---           -- Convert to strings in case we got something unexpected
---           local path_a = tostring(a)
---           local path_b = tostring(b)
---
---           -- Get absolute paths
---           path_a = CopilotChatUtils.abspath(path_a)
---           path_b = CopilotChatUtils.abspath(path_b)
---
---           -- Simple string comparison of absolute paths
---           if path_a and path_b then
---             return path_a == path_b
---           end
---
---           -- If our approach fails, try the original function with error handling
---           local success, result = pcall(original_filename_same, a, b)
---           if success then
---             return result
---           end
---
---           -- Last resort: direct string comparison
---           return tostring(a) == tostring(b)
---         end
---       end
---
---       -- Now set up the chat
---       chat.setup(opts)
---
---       -- File patching autocmd for long-term fix
---       vim.api.nvim_create_autocmd("VimEnter", {
---         callback = function()
---           vim.defer_fn(function()
---             -- Path to the utils.lua file
---             local utils_path = vim.fn.stdpath("data") .. "/lazy/CopilotChat.nvim/lua/CopilotChat/utils.lua"
---
---             -- Check if the file exists
---             if vim.fn.filereadable(utils_path) == 1 then
---               -- Read the file content
---               local content = table.concat(vim.fn.readfile(utils_path), "\n")
---
---               -- Check if we need to patch the file (has filename_same but no abspath)
---               if content:find("function M.filename_same") and not content:find("function M.abspath") then
---                 -- Create a backup of the original file
---                 vim.fn.writefile(vim.fn.readfile(utils_path), utils_path .. ".backup")
---
---                 -- Add the abspath function before the filename_same function
---                 local patched_content = content:gsub(
---                   "function M.filename_same",
---                   [[function M.abspath(path)
---   if not path then return nil end
---   local has_plenary, Path = pcall(require, 'plenary.path')
---   if has_plenary then
---     return Path:new(path):absolute()
---   else
---     return path
---   end
--- end
---
--- function M.filename_same]]
---                 )
---
---                 -- Replace the problematic line in filename_same with a safer version
---                 patched_content = patched_content:gsub(
---                   "return vim.loop.fs_stat(a).ino == vim.loop.fs_stat(b).ino",
---                   [[local success, result = pcall(function()
---     local stat_a = vim.loop.fs_stat(M.abspath(a))
---     local stat_b = vim.loop.fs_stat(M.abspath(b))
---     if stat_a and stat_b and stat_a.ino and stat_b.ino then
---       return stat_a.ino == stat_b.ino
---     end
---     return M.abspath(a) == M.abspath(b)
---   end)
---   return success and result or M.abspath(a) == M.abspath(b)]]
---                 )
---
---                 -- Write the patched file
---                 vim.fn.writefile(vim.split(patched_content, "\n"), utils_path)
---
---                 -- Notify the user
---                 vim.notify(
---                   "Patched CopilotChat utils.lua to fix abspath issue. Restart Neovim for changes to take effect.",
---                   vim.log.levels.INFO
---                 )
---               end
---             end
---           end, 1000) -- Wait 1 second for plugins to load
---         end,
---         once = true,
---       })
---
---       -- Set up commands
---       local select = require("CopilotChat.select")
---
---       -- Visual selection chat
---       vim.api.nvim_create_user_command("CopilotChatVisual", function(args)
---         chat.ask(args.args, { selection = select.visual })
---       end, { nargs = "*", range = true })
---
---       -- Inline chat with Copilot
---       vim.api.nvim_create_user_command("CopilotChatInline", function(args)
---         chat.ask(args.args, {
---           selection = select.visual,
---           window = {
---             layout = "float",
---             relative = "cursor",
---             width = 1,
---             height = 0.4,
---             row = 1,
---           },
---         })
---       end, { nargs = "*", range = true })
---
---       -- Buffer chat
---       vim.api.nvim_create_user_command("CopilotChatBuffer", function(args)
---         chat.ask(args.args, { selection = select.buffer })
---       end, { nargs = "*", range = true })
---
---       -- Custom buffer settings for CopilotChat
---       vim.api.nvim_create_autocmd("BufEnter", {
---         pattern = "copilot-*",
---         callback = function()
---           vim.opt_local.relativenumber = true
---           vim.opt_local.number = true
---
---           -- Set filetype to markdown for proper syntax highlighting
---           local ft = vim.bo.filetype
---           if ft == "copilot-chat" then
---             vim.bo.filetype = "markdown"
---           end
---         end,
---       })
---     end,
---     event = "VeryLazy",
---     keys = {
---       -- Show prompts actions with telescope
---       {
---         "<leader>ap",
---         function()
---           local actions = require("CopilotChat.actions")
---           require("CopilotChat.integrations.telescope").pick(actions.prompt_actions())
---         end,
---         desc = "CopilotChat - Prompt actions",
---       },
---       {
---         "<leader>ap",
---         ":lua require('CopilotChat.integrations.telescope').pick(require('CopilotChat.actions').prompt_actions({selection = require('CopilotChat.select').visual}))<CR>",
---         mode = "x",
---         desc = "CopilotChat - Prompt actions",
---       },
---       -- Code related commands
---       { "<leader>ae", "<cmd>CopilotChatExplain<cr>", desc = "CopilotChat - Explain code" },
---       { "<leader>at", "<cmd>CopilotChatTests<cr>", desc = "CopilotChat - Generate tests" },
---       { "<leader>ar", "<cmd>CopilotChatReview<cr>", desc = "CopilotChat - Review code" },
---       { "<leader>aR", "<cmd>CopilotChatRefactor<cr>", desc = "CopilotChat - Refactor code" },
---       { "<leader>an", "<cmd>CopilotChatBetterNamings<cr>", desc = "CopilotChat - Better Naming" },
---       -- Chat with Copilot in visual mode
---       {
---         "<leader>av",
---         ":CopilotChatVisual",
---         mode = "x",
---         desc = "CopilotChat - Open in vertical split",
---       },
---       {
---         "<leader>ax",
---         ":CopilotChatInline<cr>",
---         mode = "x",
---         desc = "CopilotChat - Inline chat",
---       },
---       -- Custom input for CopilotChat
---       {
---         "<leader>ai",
---         function()
---           local input = vim.fn.input("Ask Copilot: ")
---           if input ~= "" then
---             vim.cmd("CopilotChat " .. input)
---           end
---         end,
---         desc = "CopilotChat - Ask input",
---       },
---       -- Generate commit message based on the git diff
---       {
---         "<leader>am",
---         "<cmd>CopilotChatCommit<cr>",
---         desc = "CopilotChat - Generate commit message for all changes",
---       },
---       -- Quick chat with Copilot
---       {
---         "<leader>aq",
---         function()
---           local input = vim.fn.input("Quick Chat: ")
---           if input ~= "" then
---             vim.cmd("CopilotChatBuffer " .. input)
---           end
---         end,
---         desc = "CopilotChat - Quick chat",
---       },
---       -- Debug
---       { "<leader>ad", "<cmd>CopilotChatDebugInfo<cr>", desc = "CopilotChat - Debug Info" },
---       -- Fix the issue with diagnostic
---       { "<leader>af", "<cmd>CopilotChatFixDiagnostic<cr>", desc = "CopilotChat - Fix Diagnostic" },
---       -- Clear buffer and chat history
---       { "<leader>al", "<cmd>CopilotChatReset<cr>", desc = "CopilotChat - Clear buffer and chat history" },
---       -- Toggle Copilot Chat Vsplit
---       { "<leader>ac", "<cmd>CopilotChatToggle<cr>", desc = "CopilotChat - Toggle" }, -- Changed from av to ac to avoid conflict
---       -- Copilot Chat Models
---       { "<leader>a?", "<cmd>CopilotChatModels<cr>", desc = "CopilotChat - Select Models" },
---       -- Copilot Chat Agents
---       { "<leader>aa", "<cmd>CopilotChatAgents<cr>", desc = "CopilotChat - Select Agents" },
---     },
---   },
--- }
-
 return {
   -- Dependency: Base Copilot plugin for completions
   {
@@ -382,7 +51,7 @@ return {
           },
           submit_prompt = {
             normal = "<CR>",
-            insert = "<C-CR>",
+            insert = "<C-f>",
           },
           show_help = {
             normal = "g?",
@@ -680,6 +349,35 @@ return {
             vim.notify("Failed to open inline chat: " .. tostring(ask_err), vim.log.levels.ERROR)
           end
         end, { desc = "CopilotChat - Inline chat (visual)" })
+
+        -- Direct shortcut to open CopilotChat window
+        vim.keymap.set("n", "<leader>ao", function()
+          -- Get chat module
+          local chat_ok, chat = pcall(require, "CopilotChat")
+          if not chat_ok then
+            vim.notify("Could not load CopilotChat module", vim.log.levels.ERROR)
+            return
+          end
+
+          -- Open CopilotChat window
+          local ok, err = pcall(function()
+            -- Try multiple possible functions to open the chat
+            if chat.toggle then
+              chat.toggle()
+            elseif chat.open then
+              chat.open()
+            else
+              -- Last resort - use vim command
+              vim.cmd("CopilotChat")
+            end
+          end)
+
+          if not ok then
+            vim.notify("Failed to open CopilotChat: " .. tostring(err), vim.log.levels.ERROR)
+            -- Fallback to using command directly
+            pcall(vim.cmd, "CopilotChat")
+          end
+        end, { desc = "Open CopilotChat window" })
 
         -- Custom prompt with input for both modes
         vim.keymap.set({ "n", "v" }, "<leader>ai", function()
